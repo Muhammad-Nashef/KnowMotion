@@ -24,8 +24,6 @@ transition={{ type: "spring", stiffness: 260 }}
   alt={name}
   className="w-16 h-16 mb-5 object-contain opacity-90"
 />
-
-{/*<h2 className="text-lg font-semibold text-text-primary text-center bg-gradient-to-r from-[#9aa5ff] via-[#cbb8ff] to-[#e8a6ff] bg-clip-text text-transparent"> {name} </h2>*/}
       <h2
   className={`text-lg font-semibold text-center bg-clip-text text-transparent
     bg-gradient-to-r
@@ -38,14 +36,6 @@ transition={{ type: "spring", stiffness: 260 }}
 >
   {name}
 </h2>
-{/*<p className="text-sm text-text-secondary mt-1 bg-gradient-to-r
-from-[#9aa5ff]
-via-[#cbb8ff]
-to-[#e8a6ff]
-bg-clip-text
-text-transparent">
-  Practice questions
-</p>*/}
     </motion.div>
   );
 };

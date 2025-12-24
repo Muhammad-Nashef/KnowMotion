@@ -4,7 +4,7 @@ import { FaTrash, FaPlus } from "react-icons/fa";
 import { useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { FaBolt, FaCogs } from "react-icons/fa"; // bolt for Electrical, cogs for Mechanical
+import { FaBolt, FaCogs } from "react-icons/fa";
 
 export default function AdminDashboard() {
     
@@ -20,7 +20,6 @@ export default function AdminDashboard() {
   const firstInputRef = useRef(null);
   const [subError, setSubError] = useState(false);
   const [subToDelete, setSubToDelete] = useState(null);
-
   const [mainCategories, setMainCategories] = useState([]);
   const [selectedMainCategory, setSelectedMainCategory] = useState(null);
   const [newSubImagePublicId, setNewSubImagePublicId] = useState("");
@@ -376,17 +375,36 @@ const handleQuestionImageUpload = async (e, qIndex) => {
           <motion.div
   key={sub.id}
   whileHover={{ scale: 1.05 }}
-  className="relative group flex flex-col items-center justify-center w-36 h-36 rounded-full bg-blue-500 text-white cursor-pointer shadow-lg"
+  className="relative group flex flex-col items-center justify-center
+  w-36 h-36 rounded-full bg-blue-500 text-white cursor-pointer
+  transition-all duration-300
+  hover:-translate-y-1
+  "
+  /*relative group flex flex-col items-center justify-center
+  w-36 h-36 rounded-full cursor-pointer text-white
+
+  bg-[#212121]
+
+  transition-all duration-300 ease-out
+
+  shadow-[0_0_12px_#3477B2]
+  hover:shadow-[0_0_28px_#3477B2]
+  hover:-translate-y-1
+
+  active:translate-y-0
+  active:shadow-[0_0_18px_#3477B2]*/
   onClick={() => handleSubClick(sub)}
 >
 
   {/* CATEGORY BADGE */}
   <span
-    className={`absolute top-2 left-2 z-20 flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full shadow-md text-white ${
+    className={`absolute top-2 left-2 z-20 flex items-center gap-2
+    px-3 py-1.5 text-sm font-semibold rounded-full shadow-md text-white
+    transition-transform duration-200 hover:scale-110 ${
       sub.main_category_id === 1 ? "bg-blue-500" : "bg-yellow-500"
     }`}
   >
-    {sub.main_category_id === 1 ? <FaCogs /> : <FaBolt />}
+    {sub.main_category_id === 1 ? <FaCogs size={14} /> : <FaBolt size={14} />}
   </span>
   
     {/* DELETE SUB-CATEGORY BUTTON */}

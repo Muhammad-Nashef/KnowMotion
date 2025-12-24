@@ -1,3 +1,4 @@
+# import necessary libraries
 from flask import Flask, jsonify, request
 import mysql.connector
 import os
@@ -9,20 +10,24 @@ from datetime import datetime, timedelta
 import cloudinary_config
 import cloudinary
 
+# initialize Flask app and configurations
 load_dotenv()
-
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 bcrypt = Bcrypt(app)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+
+
+# database connection function
 def get_db_connection():
-    # Placeholder for database connection logic
     return mysql.connector.connect(
         host=os.getenv("DB_HOST"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
         database=os.getenv("DB_NAME")
     )
+
+# route to get all main categories
 @app.get("/main-categories")
 def get_main_categories():
     try:
@@ -37,7 +42,8 @@ def get_main_categories():
         return jsonify(main_categories)
     except Exception as e:
         return jsonify({"error": str(e)})
-    
+
+# route to get sub-category details by id
 @app.get("/sub-category-details/<int:sub_category_id>")
 def get_sub_category_details(sub_category_id):
     try:
@@ -58,21 +64,7 @@ def get_sub_category_details(sub_category_id):
     except Exception as e:
         return jsonify({"error": str(e)})
     
-"""@app.get("/sub_categories")
-def get_sub_categories():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("SELECT * FROM sub_categories;")
-        sub_categories = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        return jsonify(sub_categories)
-    except Exception as e:
-        return jsonify({"error": str(e)})"""
-
+# route to get sub-categories for a specific main category
 @app.get("/sub-categories/<int:main_category_id>")
 def get_sub_categories(main_category_id):
     try:
@@ -106,22 +98,7 @@ def get_sub_categories(main_category_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-""""
-@app.get("/subjects")
-def get_subjects():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("SELECT * FROM subjects;")
-        subjects = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        return jsonify(subjects)
-    except Exception as e:
-        return jsonify({"error": str(e)})
-"""
+# route to get questions by sub-category id
 @app.get("/questions/by-sub-category/<int:sub_category_id>")
 def get_questions_by_sub_category(sub_category_id):
     conn = get_db_connection()
@@ -147,7 +124,7 @@ def get_questions_by_sub_category(sub_category_id):
 
     return jsonify(questions)
 
-    
+# route to get questions by main category id
 @app.get("/questions/by-main-category/<int:main_category_id>")
 def get_questions_by_main_category(main_category_id):
     try:
@@ -177,8 +154,9 @@ def get_questions_by_main_category(main_category_id):
         return jsonify(questions)
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500   
-
+        return jsonify({"error": str(e)}), 500 
+  
+# route to check if an answer is correct
 @app.post("/answers/check")
 def check_answer():
     data = request.json
@@ -188,7 +166,7 @@ def check_answer():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # 1️⃣ Check if selected answer is correct
+    #Check if selected answer is correct
     cursor.execute("""
         SELECT is_correct
         FROM answers
@@ -202,7 +180,7 @@ def check_answer():
         conn.close()
         return jsonify({"error": "Invalid answer"}), 400
 
-    # 2️⃣ Always fetch the correct answer id
+    #Always fetch the correct answer id
     cursor.execute("""
         SELECT id
         FROM answers
@@ -220,6 +198,7 @@ def check_answer():
         "correct_answer_id": correct_answer["id"]
     })
 
+# route to get all sub-categories with question counts
 @app.route("/all-subcategories")
 def get_subcategories():
     conn = get_db_connection()
@@ -249,6 +228,7 @@ def get_subcategories():
 
     return jsonify(data)
 
+# route to get questions for a specific sub-category
 @app.route("/subcategories/<int:sub_id>/questions")
 def get_questions(sub_id):
     conn = get_db_connection()
@@ -276,6 +256,8 @@ def get_questions(sub_id):
 
     return jsonify(questions)
 
+
+# route to update questions and answers
 @app.route("/questions/update", methods=["POST"])
 def update_questions():
     data = request.json
@@ -296,7 +278,7 @@ def update_questions():
             deleted_ids
         )
 
-    # 🔄 INSERT / UPDATE QUESTIONS
+    #INSERT / UPDATE QUESTIONS
     for q in questions:
         if q.get("id") is None:
             cursor.execute("""
@@ -347,6 +329,8 @@ def update_questions():
 
     return jsonify({"success": True})
 
+
+# route to create a new sub-category
 @app.route("/subcategories/create", methods=["POST"])
 def create_subcategory():
     data = request.json
@@ -370,34 +354,8 @@ def create_subcategory():
 
     return jsonify({"id": new_id, "name": name, "image_url": image_url,"image_public_id": image_public_id,  "total": 0})
 
-
-"""
-@app.route("/delete-image", methods=["POST"])
-def delete_image():
-    data = request.get_json()
-    public_id = data.get("public_id")
-
-    if not public_id:
-        return jsonify({"error": "public_id is required"}), 400
-
-    try:
-        result = cloudinary.uploader.destroy(public_id)
-
-        if result.get("result") != "ok":
-            return jsonify({
-                "error": "Delete failed",
-                "details": result
-            }), 400
-
-        return jsonify({
-            "message": "Image deleted successfully",
-            "result": result
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500"""
     
-
+# route to delete a sub-category
 @app.delete("/subcategories/<int:sub_id>")
 def delete_subcategory(sub_id):
     conn = get_db_connection()
@@ -415,14 +373,14 @@ def delete_subcategory(sub_id):
 
     image_public_id = sub["image_public_id"]
 
-    # 2️⃣ Delete image from Cloudinary
+    #Delete image from Cloudinary
     if image_public_id:
         try:
             cloudinary.uploader.destroy(image_public_id)
         except Exception as e:
             print("Cloudinary delete failed:", e)
 
-    # 3️⃣ Delete from database
+    #Delete from database
     cursor.execute(
         "DELETE FROM sub_categories WHERE id = %s",
         (sub_id,)
@@ -434,23 +392,10 @@ def delete_subcategory(sub_id):
 
     return {"success": True}
 
-"""
-@app.delete("/subcategories/<int:sub_id>")
-def delete_subcategory(sub_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("DELETE FROM sub_categories WHERE id = %s", (sub_id,))
-    conn.commit()
-
-    return {"success": True}"""
-
-
+# route for user login
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.json
-    print("dataLogin:")
-    print(data)
     username = data.get("username")
     password = data.get("password")
 
@@ -469,23 +414,6 @@ def login():
     }, app.config['SECRET_KEY'], algorithm="HS256")
 
     return jsonify({"token": token, "role": user['role']})
-
-
-"""
-@app.get("/test")
-def test():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DATABASE();")
-        db_name = cursor.fetchone()[0]
-        return {"message": "Connected successfully!", "database": db_name}
-    except Exception as e:
-        return {"error": str(e)}"""
-
-
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)

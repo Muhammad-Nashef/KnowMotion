@@ -13,7 +13,6 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path="/sub-categories/:mainCategoryId" element={<SubCategories />} />
       <Route path="/questions/:subCategoryId" element={<Questions />} />
-      {/*<Route path="/admin-dashboard" element={<AdminDashboard />} />*/}
       <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>}/>
       </Route>
       </Routes>

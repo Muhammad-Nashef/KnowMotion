@@ -8,13 +8,9 @@ export default function Questions() {
 
   const {isDark} = useOutletContext();
   const { subCategoryId } = useParams();
-
   const [questions, setQuestions] = useState([]);
   const [subjectName, setSubjectName] = useState("");
   const [loading, setLoading] = useState(true);
-
-  // answersState holds per-question selection & result:
-  // { [questionId]: { selected: "text", result: "correct" | "wrong" } }
   const [answersState, setAnswersState] = useState({});
 
   useEffect(() => {
@@ -125,9 +121,6 @@ export default function Questions() {
     {answeredCount} מתוך {total} שאלות
   </div>
 </div>
-      {/*<div className="text-center text-zinc-400 mb-8 text-sm">
-        נענו: {answeredCount} / {total} — {percentAnswered}%
-      </div>*/}
 
       <div dir="rtl" className="space-y-6">
         {questions.map((q, qIndex) => {

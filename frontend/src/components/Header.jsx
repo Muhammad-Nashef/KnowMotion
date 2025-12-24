@@ -9,7 +9,6 @@ import Swal from "sweetalert2";
 export default function Header({ isDark, setIsDark,user,setUser }) {
   const [showLogin, setShowLogin] = useState(false);
   const [loginData, setLoginData] = useState({ username: "", password: "" });
-  //const [user, setUser] = useState(null); // store logged-in user info
   const loginRef = useRef(null);
   const navigate = useNavigate();
 
@@ -92,7 +91,6 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
   
 
   return (
-    //<div className="flex justify-between items-center w-full py-4 px-6">
       <div className={`
   flex justify-between items-center w-full py-4 px-6
   sticky top-0 z-50
@@ -101,13 +99,6 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
   border-b ${isDark ? "border-gray-700" : "border-gray-400"}
   shadow-sm
 `}>
-      {/* Logo 
-      <img
-        src={logo}
-        alt="הנעת ידע"
-        className="h-16 cursor-pointer hover:opacity-80 transition"
-        onClick={() => navigate("/")}
-      />*/}
 
       <div
   onClick={() => navigate("/")}
@@ -160,10 +151,6 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
         >
           {isDark ? <FaMoon /> : <FaSun />}
         </button>
-
-
-
-
 
 
         {/* Login */}

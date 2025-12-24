@@ -5,19 +5,18 @@ import { useOutletContext } from "react-router-dom";
 
 export default function SubCategories() {
   const {isDark} = useOutletContext();
-  const { mainCategoryId } = useParams(); // get main category ID from URL
+  const { mainCategoryId } = useParams();
   const [subCategories, setSubCategories] = useState([]);
   const [mainCategoryName, setMainCategoryName] = useState("");
   const navigate = useNavigate();
 
   
   useEffect(() => {
-    // fetch subcategories for the selected main category
     fetch(`http://127.0.0.1:5000/sub-categories/${mainCategoryId}`)
       .then(res => res.json())
       .then(data => {
-        setSubCategories(data.sub_categories);  // array of subcategories
-        setMainCategoryName(data.main_category.name); // main category name
+        setSubCategories(data.sub_categories);  
+        setMainCategoryName(data.main_category.name);
       });
   }, [mainCategoryId]);
 
