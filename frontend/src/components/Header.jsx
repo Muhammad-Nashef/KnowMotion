@@ -65,7 +65,15 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
       const payload = jwtDecode(data.token);
 
       setUser({ username: payload.username, role: payload.role });
+      
+      console.log("user", user);
+      console.log("login dataL", loginData);
+      console.log("data", data);
+      console.log("payload", payload);
+      console.log("pay load ysername", payload.username);
+
       localStorage.setItem("role", payload.role);
+
       Swal.fire({
       icon: "success",
       title: "התחברת בהצלחה!",
@@ -75,7 +83,7 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
       position: "top-end",
     });
       setShowLogin(false);
-
+      
       if (payload.role === "admin") navigate("/admin-dashboard");
       else navigate("/");
     } catch (err) {

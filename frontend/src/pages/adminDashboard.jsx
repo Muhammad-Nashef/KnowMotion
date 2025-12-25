@@ -53,10 +53,22 @@ export default function AdminDashboard() {
 };
   /* ===================== LOAD SUB CATEGORIES ===================== */
   useEffect(() => {
-    fetch("http://localhost:5000/all-subcategories")
-      .then(res => res.json())
-      .then(setSubCategories);
-  }, []);
+  const token = localStorage.getItem("token"); // get the JWT from localStorage
+  console.log("Using token:", token); // log the token to verify it's being sent
+  fetch("http://localhost:5000/all-subcategories", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    }
+  })
+    .then(res => {
+      if (!res.ok) throw new Error("Unauthorized or failed to fetch");
+      return res.json();
+    })
+    .then(setSubCategories)
+    .catch(err => console.error(err));
+}, []);
 
   /* ===================== LOAD QUESTIONS ===================== */
   const handleSubClick = (sub) => {
@@ -118,8 +130,13 @@ useEffect(() => {
 }, []);
 
 const confirmDeleteSubCategory = async (subId) => {
+  const token = localStorage.getItem("token"); // get the JWT from localStorage
   await fetch(`http://localhost:5000/subcategories/${subId}`, {
-    method: "DELETE"
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    }
   });
 
   setSubCategories(prev => prev.filter(s => s.id !== subId));
@@ -268,9 +285,13 @@ const handleImageUpload = async (e) => {
 
   /* ===================== APPLY ===================== */
   const handleApplyChanges = () => {
+    const token = localStorage.getItem("token"); // get the JWT from localStorage
     fetch("http://localhost:5000/questions/update", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    },
       body: JSON.stringify({questions,
         deletedQuestionIds
     })
@@ -289,7 +310,13 @@ const handleImageUpload = async (e) => {
         setDeletedQuestionIds([]);
 
         // reload subcategories to be 100% accurate
-  fetch("http://localhost:5000/all-subcategories")
+  fetch("http://localhost:5000/all-subcategories", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    }
+  })
     .then(res => res.json())
     .then(setSubCategories);
       });
@@ -302,10 +329,14 @@ const handleImageUpload = async (e) => {
   }
   setSubError(false);
     const imageUrlToSend = newSubImage || def_icon;
-
+    const token = localStorage.getItem("token"); // get the JWT from localStorage
   fetch("http://localhost:5000/subcategories/create", {
+    
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    },
     body: JSON.stringify({
       name: newSubName,
       image_url: imageUrlToSend,
@@ -315,7 +346,13 @@ const handleImageUpload = async (e) => {
   })
     .then(res => res.json())
     .then(() => { 
-      fetch("http://localhost:5000/all-subcategories")
+      fetch("http://localhost:5000/all-subcategories", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    }
+  })
       .then(res => res.json())
       .then(data => setSubCategories(data));
     setShowAddSubModal(false);

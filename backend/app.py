@@ -9,411 +9,48 @@ import jwt
 from datetime import datetime, timedelta
 import cloudinary_config
 import cloudinary
+from flask import Flask
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
+from config import Config
+from routes.auth import auth_bp, bcrypt
+from routes.subCategories import sub_bp
+from routes.mainCategories import main_bp
+from routes.answers import answers_bp
+from routes.Questions import questions_bp
 
 # initialize Flask app and configurations
-load_dotenv()
+#load_dotenv()
 app = Flask(__name__)
+app.config["JWT_SECRET_KEY"] = Config.SECRET_KEY
+jwt = JWTManager(app)
+
+bcrypt.init_app(app)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+"""CORS(app, resources={r"/*": {"origins": "*"}})
 bcrypt = Bcrypt(app)
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")"""
+
+# Register blueprints
+app.register_blueprint(auth_bp, url_prefix="/api")
+app.register_blueprint(sub_bp)
+app.register_blueprint(main_bp)
+app.register_blueprint(answers_bp)
+app.register_blueprint(questions_bp)
+
+from flask_jwt_extended import exceptions
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    print("Invalid token:", error)
+    return jsonify({"msg": "Invalid token"}), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    print("Missing token:", error)
+    return jsonify({"msg": "Missing token"}), 401
 
-
-# database connection function
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME")
-    )
-
-# route to get all main categories
-@app.get("/main-categories")
-def get_main_categories():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("SELECT * FROM main_categories;")
-        main_categories = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        return jsonify(main_categories)
-    except Exception as e:
-        return jsonify({"error": str(e)})
-
-# route to get sub-category details by id
-@app.get("/sub-category-details/<int:sub_category_id>")
-def get_sub_category_details(sub_category_id):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT sc.*, mc.name AS main_category_name
-            FROM sub_categories sc
-            JOIN main_categories mc ON sc.main_category_id = mc.id
-            WHERE sc.id = %s;
-        """, (sub_category_id,))
-        sub_category = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
-        return jsonify(sub_category)
-    except Exception as e:
-        return jsonify({"error": str(e)})
-    
-# route to get sub-categories for a specific main category
-@app.get("/sub-categories/<int:main_category_id>")
-def get_sub_categories(main_category_id):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        # get main category details
-        cursor.execute("""
-                       SELECT name
-                       FROM main_categories
-                       WHERE id = %s
-                       """, (main_category_id,))
-        main_category = cursor.fetchone()
-        
-        # get sub categories for a specific main category
-        cursor.execute("""
-            SELECT *
-            FROM sub_categories
-            WHERE main_category_id = %s
-        """, (main_category_id,))
-
-        sub_categories = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-
-        return jsonify({
-            "main_category": main_category,
-            "sub_categories": sub_categories
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-# route to get questions by sub-category id
-@app.get("/questions/by-sub-category/<int:sub_category_id>")
-def get_questions_by_sub_category(sub_category_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT id, question_text, img_url
-        FROM questions
-        WHERE sub_category_id = %s
-    """, (sub_category_id,))
-    questions = cursor.fetchall()
-
-    for question in questions:
-        cursor.execute("""
-            SELECT id, answer_text
-            FROM answers
-            WHERE question_id = %s
-        """, (question["id"],))
-        question["answers"] = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    return jsonify(questions)
-
-# route to get questions by main category id
-@app.get("/questions/by-main-category/<int:main_category_id>")
-def get_questions_by_main_category(main_category_id):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        query = """
-            SELECT q.id, q.question_text, img_url
-            FROM questions q
-            JOIN sub_categories sc ON q.sub_category_id = sc.id
-            WHERE sc.main_category_id = %s;
-        """
-        cursor.execute(query, (main_category_id,))
-        questions = cursor.fetchall()
-
-        for question in questions:
-            cursor.execute("""
-                SELECT id, answer_text, is_correct
-                FROM answers
-                WHERE question_id = %s
-            """, (question["id"],))
-            question["answers"] = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-
-        return jsonify(questions)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500 
-  
-# route to check if an answer is correct
-@app.post("/answers/check")
-def check_answer():
-    data = request.json
-    question_id = data["question_id"]
-    answer_id = data["answer_id"]
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    #Check if selected answer is correct
-    cursor.execute("""
-        SELECT is_correct
-        FROM answers
-        WHERE id = %s AND question_id = %s
-    """, (answer_id, question_id))
-
-    selected = cursor.fetchone()
-
-    if not selected:
-        cursor.close()
-        conn.close()
-        return jsonify({"error": "Invalid answer"}), 400
-
-    #Always fetch the correct answer id
-    cursor.execute("""
-        SELECT id
-        FROM answers
-        WHERE question_id = %s AND is_correct = 1
-        LIMIT 1
-    """, (question_id,))
-
-    correct_answer = cursor.fetchone()
-
-    cursor.close()
-    conn.close()
-
-    return jsonify({
-        "correct": bool(selected["is_correct"]),
-        "correct_answer_id": correct_answer["id"]
-    })
-
-# route to get all sub-categories with question counts
-@app.route("/all-subcategories")
-def get_subcategories():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # 1️⃣ Execute
-    cursor.execute("SELECT id, name, main_category_id FROM sub_categories")
-    subs = cursor.fetchall()
-
-    data = []
-    for sub in subs:
-        cursor.execute(
-            "SELECT COUNT(*) AS total FROM questions WHERE sub_category_id = %s",
-            (sub["id"],)
-        )
-        total = cursor.fetchone()["total"]
-
-        data.append({
-            "id": sub["id"],
-            "name": sub["name"],
-            "main_category_id": sub["main_category_id"],
-            "total": total
-        })
-
-    cursor.close()
-    conn.close()
-
-    return jsonify(data)
-
-# route to get questions for a specific sub-category
-@app.route("/subcategories/<int:sub_id>/questions")
-def get_questions(sub_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # Get questions
-    cursor.execute("""
-        SELECT id, question_text, img_url
-        FROM questions
-        WHERE sub_category_id = %s
-    """, (sub_id,))
-    questions = cursor.fetchall()
-
-    # Attach answers to each question
-    for q in questions:
-        cursor.execute("""
-            SELECT id, answer_text, is_correct
-            FROM answers
-            WHERE question_id = %s
-        """, (q["id"],))
-        q["answers"] = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    return jsonify(questions)
-
-
-# route to update questions and answers
-@app.route("/questions/update", methods=["POST"])
-def update_questions():
-    data = request.json
-    questions = data["questions"]
-    deleted_ids = data["deletedQuestionIds"]
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # 🗑 DELETE QUESTIONS
-    if deleted_ids:
-        cursor.execute(
-            f"DELETE FROM answers WHERE question_id IN ({','.join(['%s'] * len(deleted_ids))})",
-            deleted_ids
-        )
-        cursor.execute(
-            f"DELETE FROM questions WHERE id IN ({','.join(['%s'] * len(deleted_ids))})",
-            deleted_ids
-        )
-
-    #INSERT / UPDATE QUESTIONS
-    for q in questions:
-        if q.get("id") is None:
-            cursor.execute("""
-                INSERT INTO questions (sub_category_id, question_text, img_url)
-                VALUES (%s, %s, %s)
-            """, (
-                q["sub_category_id"],
-                q["question_text"],
-                q.get("img_url")
-            ))
-            question_id = cursor.lastrowid
-        else:
-            question_id = q["id"]
-            cursor.execute("""
-                UPDATE questions
-                SET question_text = %s, img_url = %s
-                WHERE id = %s
-            """, (
-                q["question_text"],
-                q.get("img_url"),
-                question_id
-            ))
-
-        for a in q["answers"]:
-            if a.get("id") is None:
-                cursor.execute("""
-                    INSERT INTO answers (question_id, answer_text, is_correct)
-                    VALUES (%s, %s, %s)
-                """, (
-                    question_id,
-                    a["answer_text"],
-                    a["is_correct"]
-                ))
-            else:
-                cursor.execute("""
-                    UPDATE answers
-                    SET answer_text = %s, is_correct = %s
-                    WHERE id = %s
-                """, (
-                    a["answer_text"],
-                    a["is_correct"],
-                    a["id"]
-                ))
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    return jsonify({"success": True})
-
-
-# route to create a new sub-category
-@app.route("/subcategories/create", methods=["POST"])
-def create_subcategory():
-    data = request.json
-
-    name = data["name"]
-    image_url = data.get("image_url", "")
-    image_public_id = data.get("image_public_id", None)
-    main_category_id = data["main_category_id"]
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO sub_categories (main_category_id, name, image_url, image_public_id)
-        VALUES (%s, %s, %s, %s)
-    """, (main_category_id, name, image_url, image_public_id))
-
-    conn.commit()
-    new_id = cursor.lastrowid
-    cursor.close()
-    conn.close()
-
-    return jsonify({"id": new_id, "name": name, "image_url": image_url,"image_public_id": image_public_id,  "total": 0})
-
-    
-# route to delete a sub-category
-@app.delete("/subcategories/<int:sub_id>")
-def delete_subcategory(sub_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # 1️⃣ Get image public_id first
-    cursor.execute(
-        "SELECT image_public_id FROM sub_categories WHERE id = %s",
-        (sub_id,)
-    )
-    sub = cursor.fetchone()
-
-    if not sub:
-        return {"error": "Sub-category not found"}, 404
-
-    image_public_id = sub["image_public_id"]
-
-    #Delete image from Cloudinary
-    if image_public_id:
-        try:
-            cloudinary.uploader.destroy(image_public_id)
-        except Exception as e:
-            print("Cloudinary delete failed:", e)
-
-    #Delete from database
-    cursor.execute(
-        "DELETE FROM sub_categories WHERE id = %s",
-        (sub_id,)
-    )
-    conn.commit()
-
-    cursor.close()
-    conn.close()
-
-    return {"success": True}
-
-# route for user login
-@app.route("/api/login", methods=["POST"])
-def login():
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
-    user = cursor.fetchone()
-    conn.close()
-    if not user or not bcrypt.check_password_hash(user['password_hash'], password):
-        return jsonify({"message": "Invalid credentials"}), 401
-
-    token = jwt.encode({
-        "id": user['id'],
-        "role": user['role'],
-        "exp": datetime.utcnow() + timedelta(hours=2)
-    }, app.config['SECRET_KEY'], algorithm="HS256")
-
-    return jsonify({"token": token, "role": user['role']})
 
 if __name__ == "__main__":
     app.run(debug=True)
