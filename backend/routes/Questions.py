@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.db import get_db_connection
 from utils.decorators import admin_required
+from utils.cloudinary_utils import delete_image
 
 questions_bp = Blueprint("questions", __name__)
 
@@ -103,17 +104,30 @@ def get_questions(sub_id):
 
 @questions_bp.route("/questions/update", methods=["POST"])
 @admin_required
-#@app.route("/questions/update", methods=["POST"])
 def update_questions():
     data = request.json
     questions = data["questions"]
     deleted_ids = data["deletedQuestionIds"]
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
     # 🗑 DELETE QUESTIONS
     if deleted_ids:
+        # First, get img_urls for the deleted questions
+        cursor.execute(
+            f"SELECT img_url FROM questions WHERE id IN ({','.join(['%s'] * len(deleted_ids))})",
+            deleted_ids
+        )
+        img_urls = [row['img_url'] for row in cursor.fetchall() if row['img_url']]
+        print("Image URLs to delete:", img_urls)
+        # Delete images from Cloudinary
+        for url in img_urls:
+            # Extract public_id from the URL
+            filename = url.rsplit('/', 1)[-1].split('.')[0]  # simple extraction
+            public_id = f"knowmotion/questions_images/{filename}"
+            delete_image(public_id)
+
         cursor.execute(
             f"DELETE FROM answers WHERE question_id IN ({','.join(['%s'] * len(deleted_ids))})",
             deleted_ids
@@ -122,9 +136,10 @@ def update_questions():
             f"DELETE FROM questions WHERE id IN ({','.join(['%s'] * len(deleted_ids))})",
             deleted_ids
         )
-
+        
     #INSERT / UPDATE QUESTIONS
     for q in questions:
+        print("Processing question:", q)
         if q.get("id") is None:
             cursor.execute("""
                 INSERT INTO questions (sub_category_id, question_text, img_url)
@@ -171,5 +186,27 @@ def update_questions():
     conn.commit()
     cursor.close()
     conn.close()
+
+    return jsonify({"success": True})
+
+
+
+@questions_bp.route("/questions/delete-image", methods=["POST"])
+@admin_required
+def delete_question_image():
+    data = request.json
+    img_url = data.get("img_url")
+    print("data:", data)
+    print("Received request to delete image URL:", img_url)
+    if not img_url:
+        return jsonify({"success": False, "message": "No image URL provided"}), 400
+
+    # Extract filename without extension
+    filename = img_url.rsplit('/', 1)[-1].split('.')[0]
+    # Include folder path
+    public_id = f"knowmotion/questions_images/{filename}"
+    print("Deleting image with public_id:", public_id)
+
+    delete_image(public_id)  # delete from Cloudinary
 
     return jsonify({"success": True})

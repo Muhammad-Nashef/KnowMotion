@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaTrash, FaPlus } from "react-icons/fa";
+import { FaTrash, FaPlus, FaPencilAlt } from "react-icons/fa";
 import { useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { FaBolt, FaCogs } from "react-icons/fa";
+import { v4 as uuidv4 } from "uuid"; // npm install uuid
 
 export default function AdminDashboard() {
     
@@ -26,6 +27,9 @@ export default function AdminDashboard() {
   const def_icon =
   "https://res.cloudinary.com/davjzk9oi/image/upload/v1766512083/default_icon_nlybfx.png";
 
+
+
+  /* ===================== LOAD MAIN CATEGORIES ===================== */
   useEffect(() => {
   fetch("http://localhost:5000/main-categories")
     .then(res => res.json())
@@ -34,8 +38,6 @@ export default function AdminDashboard() {
       if (data.length > 0) setSelectedMainCategory(data[0].id); // default selection
     });
 }, []);
-
-
 
   /* ===================== TIME GREETING ===================== */
   useEffect(() => {
@@ -51,10 +53,10 @@ export default function AdminDashboard() {
   const openDeleteSubModal = (sub) => {
   setSubToDelete(sub);
 };
+
   /* ===================== LOAD SUB CATEGORIES ===================== */
   useEffect(() => {
   const token = localStorage.getItem("token"); // get the JWT from localStorage
-  console.log("Using token:", token); // log the token to verify it's being sent
   fetch("http://localhost:5000/all-subcategories", {
     method: "GET",
     headers: {
@@ -90,6 +92,8 @@ export default function AdminDashboard() {
     });
 };
 
+
+
 // update subtotal when questions are added or removed
   const updateSubTotal = (subId, diff) => {
   setSubCategories(prev =>
@@ -100,12 +104,19 @@ export default function AdminDashboard() {
     )
   );
 };
+
+
+
+
 // focus first input when modal opens
 useEffect(() => {
   if (showAddSubModal) {
     setTimeout(() => firstInputRef.current?.focus(), 100);
   }
 }, [showAddSubModal]);
+
+
+
 
 // close modal on ESC key
 useEffect(() => {
@@ -123,11 +134,41 @@ useEffect(() => {
 }, [showAddSubModal]);
 
 
-useEffect(() => {
+
+async function removeImage(qIndex, img_url) {
+  if (!img_url) return;
+
+  try {
+    // Call backend to delete image from Cloudinary
+    const token = localStorage.getItem("token"); // get the JWT from localStorage
+    const res = await fetch("http://localhost:5000/questions/delete-image", {
+      method: "POST",
+      headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    },
+      body: JSON.stringify({ img_url }),
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      // Remove image locally
+      updateQuestion(qIndex, "img_url", "");
+    } else {
+      alert("Failed to delete image from Cloudinary");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Error deleting image");
+  }
+}
+
+{/*useEffect(() => {
   if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
     document.documentElement.classList.add("dark");
   }
 }, []);
+*/}
 
 const confirmDeleteSubCategory = async (subId) => {
   const token = localStorage.getItem("token"); // get the JWT from localStorage
@@ -188,31 +229,52 @@ const handleImageUpload = async (e) => {
 
 
   /* ===================== QUESTION UPDATE ===================== */
-  const updateQuestion = (qIndex, field, value) => {
-    const copy = [...questions];
+  const updateQuestion = (questionId, field, value) => {
+  setQuestions(prev => {
+    const copy = [...prev];
+    const qIndex = copy.findIndex(q => (q.id ?? q.tempId) === questionId);
+    if (qIndex === -1) return copy; // question not found
+
     copy[qIndex][field] = value;
-    setQuestions(copy);
-    if (!editedRows.includes(qIndex)) setEditedRows([...editedRows, qIndex]);
-  };
+
+    // mark as edited
+    setEditedRows(prevEdited => {
+      if (!prevEdited.includes(questionId)) return [...prevEdited, questionId];
+      return prevEdited;
+    });
+
+    return copy;
+  });
+};
 
   /* ===================== ANSWER UPDATE ===================== */
-  const updateAnswer = (qIndex, aIndex, field, value) => {
-    const copy = [...questions];
+  const updateAnswer = (questionId, aIndex, field, value) => {
+  setQuestions(prev => {
+    const copy = [...prev];
+    const qIndex = copy.findIndex(q => (q.id ?? q.tempId) === questionId);
+    if (qIndex === -1) return copy;
 
     if (field === "is_correct" && value === true) {
       copy[qIndex].answers.forEach(a => (a.is_correct = false));
     }
 
     copy[qIndex].answers[aIndex][field] = value;
-    setQuestions(copy);
-    if (!editedRows.includes(qIndex)) setEditedRows([...editedRows, qIndex]);
-  };
+
+    setEditedRows(prevEdited => {
+      if (!prevEdited.includes(questionId)) return [...prevEdited, questionId];
+      return prevEdited;
+    });
+
+    return copy;
+  });
+};
 
   /* ===================== ADD QUESTION ===================== */
   const addQuestion = () => {
-    setQuestions([
-      ...questions,
+    setQuestions(prev => [
+    ...prev,
       {
+        tempId: uuidv4(),   
         id: null,
         sub_category_id: selectedSub.id,
         question_text: "",
@@ -229,21 +291,25 @@ const handleImageUpload = async (e) => {
   };
 
   /* ===================== DELETE QUESTION ===================== */
-  const deleteQuestion = (index) => {
-    const q = questions[index];
+  const deleteQuestion = (questionId) => {
+  setQuestions(prev => {
+    const q = prev.find(q => (q.id ?? q.tempId) === questionId);
 
-  // if question already exists in DB → mark for deletion
-  if (q.id) {
-    setDeletedQuestionIds(prev => [...prev, q.id]);
-  }
+    // mark for deletion if exists in DB
+    if (q?.id) {
+      setDeletedQuestionIds(prevDeleted => [...prevDeleted, q.id]);
+    }
 
-  setQuestions(questions.filter((_, i) => i !== index));
-  setEditedRows(editedRows.filter(i => i !== index));
+    return prev.filter(q => (q.id ?? q.tempId) !== questionId);
+  });
 
-    updateSubTotal(selectedSub.id, -1);
-  };
+  // also remove from edited rows
+  setEditedRows(prev => prev.filter(id => id !== questionId));
 
-  /* ===================== ADD ANSWER ===================== */
+  if (selectedSub) updateSubTotal(selectedSub.id, -1);
+};
+
+  /* ===================== ADD ANSWER ===================== 
   const addAnswer = (qIndex) => {
     const copy = [...questions];
 
@@ -263,7 +329,7 @@ const handleImageUpload = async (e) => {
       is_correct: false
     });
     setQuestions(copy);
-  };
+  };*/
 
   /* ===================== DELETE ANSWER ===================== */
   const deleteAnswer = (qIndex, aIndex) => {
@@ -284,7 +350,20 @@ const handleImageUpload = async (e) => {
   };
 
   /* ===================== APPLY ===================== */
-  const handleApplyChanges = () => {
+  const handleApplyChanges = (subId) => {
+    // Check all questions
+  for (let q of questions) {
+    const correctCount = q.answers.filter(a => a.is_correct).length;
+    if (correctCount !== 1) {
+      Swal.fire({
+        icon: "error",
+        title: "שגיאה",
+        text: "חייבת להיות בדיוק תשובה אחת נכונה לכל שאלה",
+        confirmButtonColor: "#d33",
+      });
+      return; // stop applying changes
+    }
+  }
     const token = localStorage.getItem("token"); // get the JWT from localStorage
     fetch("http://localhost:5000/questions/update", {
       method: "POST",
@@ -308,6 +387,10 @@ const handleImageUpload = async (e) => {
 });
         setEditedRows([]);
         setDeletedQuestionIds([]);
+// ✅ 1. Reload questions of selected subcategory
+      fetch(`http://localhost:5000/subcategories/${selectedSub.id}/questions`)
+        .then(res => res.json())
+        .then(setQuestions);
 
         // reload subcategories to be 100% accurate
   fetch("http://localhost:5000/all-subcategories", {
@@ -402,6 +485,56 @@ const handleQuestionImageUpload = async (e, qIndex) => {
   }
 };
 
+const handleIconUpload = async (e, subId) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", "your_upload_preset");
+  formData.append("folder", "quizdrive/subcategory-icons");
+
+  try {
+    const res = await axios.post(
+      "https://api.cloudinary.com/v1_1/your_cloud_name/upload",
+      formData
+    );
+
+    const url = res.data.secure_url;
+
+    // Update backend DB
+    const token = localStorage.getItem("token");
+    await axios.patch(`http://localhost:5000/subcategories/${subId}`, 
+      { icon_url: url },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // Update state locally
+    setSubCategories(prev => prev.map(s => s.id === subId ? { ...s, icon_url: url } : s));
+  } catch (err) {
+    console.error("Icon upload failed:", err);
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
     <div className="p-8" dir="rtl">
       <h1 className="text-2xl text-[#3477B2] font-bold mb-6">{greeting}</h1>
@@ -444,6 +577,10 @@ const handleQuestionImageUpload = async (e, qIndex) => {
     {sub.main_category_id === 1 ? <FaCogs size={14} /> : <FaBolt size={14} />}
   </span>
   
+
+    
+  
+  
     {/* DELETE SUB-CATEGORY BUTTON */}
     <div className="absolute top-2 right-2 z-20 opacity-0 scale-90
   group-hover:opacity-100 group-hover:scale-100
@@ -461,7 +598,7 @@ const handleQuestionImageUpload = async (e, qIndex) => {
 
   {/* Spinning border like Spinner 1 */}
   <span className="absolute inset-0 rounded-full border-4 border-blue-300 border-t-blue-500 animate-spin"></span>
-
+        
   {/* Circle content (on top of spinner) */}
   <div className="z-10 flex flex-col items-center justify-center select-none">
     <span className="font-bold">{sub.name}</span>
@@ -483,19 +620,30 @@ const handleQuestionImageUpload = async (e, qIndex) => {
       <AnimatePresence>
         {selectedSub && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <h2 className="text-xl font-semibold mb-4">
-              {selectedSub.name}
-            </h2>
+            <div className="flex items-center gap-2 mb-4">
+  <h2 className="text-xl font-semibold">{selectedSub.name}</h2>
+
+  {/* Pencil button for editing sub-category icon */}
+  <label className="flex items-center justify-center p-1 rounded-full bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer shadow-md">
+    <FaPencilAlt size={14} />
+    <input
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) => handleIconUpload(e, selectedSub.id)}
+    />
+  </label>
+</div>
             {questions.length === 0 ? (
         <div className="text-center text-zinc-400 py-10 text-lg">
           אין שאלות בתת־קטגוריה זו
         </div>
       ) : (
-            questions.map((q, qIndex) => (
+            questions.map((q) => (
               <motion.div
-  key={q.id ?? qIndex}
+  key={q.id ?? q.tempId}
   animate={{
-    backgroundColor: editedRows.includes(qIndex) ? "#1a3756ff" : undefined
+    backgroundColor: editedRows.includes(q.tempId ?? q.id) ? "#1a3756ff" : undefined
   }}
   transition={{ duration: 0.3 }}
   className="border rounded p-4 mb-4"
@@ -503,11 +651,11 @@ const handleQuestionImageUpload = async (e, qIndex) => {
                 <div className="flex flex-row-reverse items-center gap-2 mb-2">
                   <input
                     value={q.question_text}
-                    onChange={e => updateQuestion(qIndex, "question_text", e.target.value)}
+                    onChange={e => updateQuestion(q.tempId ?? q.id, "question_text", e.target.value)}
                     placeholder="טקטסט השאלה"
                     className="w-full border px-2 py-1 rounded"
                   />
-                  <button onClick={() => deleteQuestion(qIndex)} className="text-red-500">
+                  <button onClick={() => deleteQuestion(q.tempId ?? q.id)} className="text-red-500">
                     <FaTrash />
                   </button>
                 </div>
@@ -528,14 +676,14 @@ const handleQuestionImageUpload = async (e, qIndex) => {
       accept="image/*"
       hidden
       disabled={!!q.img_url}
-      onChange={(e) => handleQuestionImageUpload(e, qIndex)}
+      onChange={(e) => handleQuestionImageUpload(e, q.tempId ?? q.id)}
     />
   </label>
 
   {/* Remove image */}
   <button
     disabled={!q.img_url}
-    onClick={() => updateQuestion(qIndex, "img_url", "")}
+    onClick={() => removeImage(q.tempId ?? q.id, q.img_url)}
     className={`
       text-sm transition
       ${q.img_url
@@ -562,32 +710,25 @@ const handleQuestionImageUpload = async (e, qIndex) => {
                     <input
                       value={a.answer_text}
                       onChange={e =>
-                        updateAnswer(qIndex, aIndex, "answer_text", e.target.value)
+                        updateAnswer(q.tempId ?? q.id, aIndex, "answer_text", e.target.value)
                       }
                       className="border px-2 py-1 rounded w-full"
                       placeholder="Answer"
                     />
                     <input
                       type="radio"
-                      name={`correct-answer-${qIndex}`}
+                      name={`correct-answer-${q.tempId ?? q.id}`}
                       checked={a.is_correct}
                       onChange={e =>
-                        updateAnswer(qIndex, aIndex, "is_correct", true)
+                        updateAnswer(q.tempId ?? q.id, aIndex, "is_correct", true)
                       }
                     />
-                    <button onClick={() => deleteAnswer(qIndex, aIndex)} className="text-red-500">
+                    <button onClick={() => deleteAnswer(q.tempId ?? q.id, aIndex)} className="text-red-500">
                       <FaTrash />
                     </button>
                   </div>
                 ))}
-                {q.answers.length < 4 && (
-                    <button
-                  onClick={() => addAnswer(qIndex)}
-                  className="text-blue-600 text-sm"
-                >
-                  + הוספת תשובה
-                </button>
-                )}
+                
               </motion.div>
             ))
           )}
@@ -643,7 +784,7 @@ const handleQuestionImageUpload = async (e, qIndex) => {
 
       <div className="mb-4">
   <label className="cursor-pointer flex items-center gap-2 px-3 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition">
-    <span>Upload Image</span>
+    <span>העלאת תמונה</span>
     <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
   </label>
   <div className="mt-2 flex justify-center">
@@ -654,6 +795,9 @@ const handleQuestionImageUpload = async (e, qIndex) => {
     />
 </div>
 </div>
+<label className="block mb-1 text-[#3477B2] font-medium">
+  קטגוריה ראשית:
+</label>
 <select
   value={selectedMainCategory}
   onChange={e => setSelectedMainCategory(Number(e.target.value))}

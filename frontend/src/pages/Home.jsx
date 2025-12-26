@@ -14,7 +14,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className={`${isDark ? "bg-[#212121] text-white" : "bg-white text-black"} min-h-screen flex flex-col`}>
+    <div className={`${isDark ? "theme-dark" : "theme-light"} min-h-screen flex flex-col`}>
 
       {/* Page Content */}
       <div className="flex flex-col items-center justify-center px-6 mt-16 flex-1">

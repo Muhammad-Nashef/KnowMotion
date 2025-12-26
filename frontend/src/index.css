@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+/* Theme variables */
+:root {
+  --bg-dark: #212121;
+  --text-dark: #ffffff;
+  --bg-light: #e6e6e6;
+  --text-light: #000000;
+  min-width: 340px;
+}
+
+/* Dark mode */
+.theme-dark {
+  background-color: var(--bg-dark);
+  color: var(--text-dark);
+}
+
+/* Light mode */
+.theme-light {
+  background-color: var(--bg-light);
+  color: var(--text-light);
+}
+
+/* Optional: smooth background/text transition */
+.theme-dark,
+.theme-light {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.page-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  text-align: center;
+  color: #3477b2;
+  margin-bottom: 3rem;
+}

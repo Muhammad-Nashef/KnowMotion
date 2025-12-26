@@ -69,7 +69,6 @@ def get_sub_categories(main_category_id):
 @admin_required
 #@app.route("/all-subcategories")
 def get_subcategories():
-    print("headers: ",request.headers)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 

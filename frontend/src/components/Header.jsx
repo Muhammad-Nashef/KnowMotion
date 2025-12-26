@@ -65,12 +65,6 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
       const payload = jwtDecode(data.token);
 
       setUser({ username: payload.username, role: payload.role });
-      
-      console.log("user", user);
-      console.log("login dataL", loginData);
-      console.log("data", data);
-      console.log("payload", payload);
-      console.log("pay load ysername", payload.username);
 
       localStorage.setItem("role", payload.role);
 
@@ -105,7 +99,7 @@ export default function Header({ isDark, setIsDark,user,setUser }) {
   backdrop-blur-md
   ${isDark ? "bg-gray-700/10" : "bg-gray-300/10"}
   border-b ${isDark ? "border-gray-700" : "border-gray-400"}
-  shadow-sm
+  shadow-sm 
 `}>
 
       <div

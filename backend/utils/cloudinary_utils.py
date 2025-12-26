@@ -9,10 +9,13 @@ cloudinary.config(
 )
 
 def delete_image(public_id):
+    print("Cloudinary config:", Config.CLOUDINARY_CLOUD_NAME, Config.CLOUDINARY_API_KEY, Config.CLOUDINARY_API_SECRET)
+
     """Delete image from Cloudinary"""
     if public_id:
         try:
             cloudinary.uploader.destroy(public_id)
+            print("Cloudinary delete successful for public_id:", public_id)
             return True
         except Exception as e:
             print("Cloudinary delete failed:", e)
