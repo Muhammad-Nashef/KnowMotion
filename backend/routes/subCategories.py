@@ -73,7 +73,7 @@ def get_subcategories():
     cursor = conn.cursor(dictionary=True)
 
     #Execute
-    cursor.execute("SELECT id, name, main_category_id FROM sub_categories")
+    cursor.execute("SELECT id, name, main_category_id, image_url, image_public_id FROM sub_categories")
     subs = cursor.fetchall()
 
     data = []
@@ -88,7 +88,9 @@ def get_subcategories():
             "id": sub["id"],
             "name": sub["name"],
             "main_category_id": sub["main_category_id"],
-            "total": total
+            "total": total,
+            "image_url":sub["image_url"],
+            "image_public_id": sub["image_public_id"]
         })
 
     cursor.close()
@@ -147,6 +149,84 @@ def delete_subcategory(sub_id):
         "DELETE FROM sub_categories WHERE id = %s",
         (sub_id,)
     )
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return {"success": True}
+
+@sub_bp.route("/subcategories/<int:sub_id>", methods=["PUT"])
+@admin_required
+# route to update a sub-category
+def update_subcategory(sub_id):
+    data = request.json
+    name = data["name"]
+    main_category_id = data["main_category_id"]
+    image_url = data["image_url"]
+    image_public_id = data["image_public_id"]
+    
+    if not name or not main_category_id:
+        return jsonify({"error": "Missing fields"}), 400
+    
+
+     # Update database
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("""
+            UPDATE sub_categories
+            SET name = %s,
+                main_category_id = %s,
+                image_url = %s,
+                image_public_id = %s
+            WHERE id = %s
+        """, (name, main_category_id, image_url,image_public_id, sub_id))
+
+        conn.commit()
+       
+        cursor.execute("SELECT * FROM sub_categories WHERE id = %s", (sub_id,))
+        updated = cursor.fetchone()
+
+        return jsonify(updated), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@sub_bp.route("/subcategories/delIcon/<int:sub_id>", methods=["PUT"])
+@admin_required
+# route to delete sub-category icon
+def delete_subcategory_icon(sub_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # 1️⃣ Get image public_id first
+    cursor.execute(
+        "SELECT image_public_id FROM sub_categories WHERE id = %s",
+        (sub_id,)
+    )
+    sub = cursor.fetchone()
+
+    if not sub:
+        return {"error": "Sub-category not found"}, 404
+
+    delete_image(sub["image_public_id"])
+
+    # 2️⃣ Update database to remove icon info
+    cursor.execute("""
+        UPDATE sub_categories
+        SET image_url = %s,
+            image_public_id = %s
+        WHERE id = %s
+    """, ("", None, sub_id))
+
     conn.commit()
 
     cursor.close()

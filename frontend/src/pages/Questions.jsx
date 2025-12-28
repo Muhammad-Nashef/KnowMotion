@@ -34,8 +34,8 @@ export default function Questions() {
     });
 }, [subCategoryId]);
 
-  if (loading) return <div className={`${isDark ? "bg-[#212121] text-white" : "bg-white text-black"} min-h-screen flex items-center justify-center`}>Loading...</div>;
-  if (!questions.length) return <div className={`${isDark ? "bg-[#212121] text-white" : "bg-white text-black"} min-h-screen flex items-center justify-center`}>No questions found</div>;
+  if (loading) return <div className={`${isDark ? "bg-[#212121] text-white" : "bg-white text-black"} min-h-screen flex items-center justify-center`}>...טוען</div>;
+  if (!questions.length) return <div className={`${isDark ? "bg-[#212121] text-white" : "bg-white text-black"} min-h-screen flex items-center justify-center`}>אין שאלות בקטגוריה זו</div>;
 
   // User clicked answer
   const handleAnswer = async (questionId, answerId) => {

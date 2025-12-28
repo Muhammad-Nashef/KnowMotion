@@ -5,7 +5,7 @@ import { useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { FaBolt, FaCogs } from "react-icons/fa";
-import { v4 as uuidv4 } from "uuid"; // npm install uuid
+import { v4 as uuidv4 } from "uuid";
 
 export default function AdminDashboard() {
     
@@ -24,6 +24,10 @@ export default function AdminDashboard() {
   const [mainCategories, setMainCategories] = useState([]);
   const [selectedMainCategory, setSelectedMainCategory] = useState(null);
   const [newSubImagePublicId, setNewSubImagePublicId] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editSub, setEditSub] = useState(null);
+  const [saving, setSaving] = useState(false);
+
   const def_icon =
   "https://res.cloudinary.com/davjzk9oi/image/upload/v1766512083/default_icon_nlybfx.png";
 
@@ -163,12 +167,6 @@ async function removeImage(qIndex, img_url) {
   }
 }
 
-{/*useEffect(() => {
-  if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    document.documentElement.classList.add("dark");
-  }
-}, []);
-*/}
 
 const confirmDeleteSubCategory = async (subId) => {
   const token = localStorage.getItem("token"); // get the JWT from localStorage
@@ -309,45 +307,6 @@ const handleImageUpload = async (e) => {
   if (selectedSub) updateSubTotal(selectedSub.id, -1);
 };
 
-  /* ===================== ADD ANSWER ===================== 
-  const addAnswer = (qIndex) => {
-    const copy = [...questions];
-
-    if (copy[qIndex].answers.length >= 4) {
-        Swal.fire({
-  icon: "error",
-  title: "שגיאה",
-  text: "ניתן להוסיף עד 4 תשובות בלבד",
-  confirmButtonColor: "#d33",
-});
-        return;
-    }
-
-    copy[qIndex].answers.push({
-      id: null,
-      answer_text: "",
-      is_correct: false
-    });
-    setQuestions(copy);
-  };*/
-
-  /* ===================== DELETE ANSWER ===================== */
-  const deleteAnswer = (qIndex, aIndex) => {
-    const copy = [...questions];
-
-    if (copy[qIndex].answers.length <= 4) {
-        Swal.fire({
-  icon: "error",
-  title: "שגיאה",
-  text: "חייבות להיות בדיוק 4 תשובות לכל שאלה",
-  confirmButtonColor: "#d33",
-});
-        return;
-    }
-
-    copy[qIndex].answers.splice(aIndex, 1);
-    setQuestions(copy);
-  };
 
   /* ===================== APPLY ===================== */
   const handleApplyChanges = (subId) => {
@@ -485,54 +444,134 @@ const handleQuestionImageUpload = async (e, qIndex) => {
   }
 };
 
-const handleIconUpload = async (e, subId) => {
-  const file = e.target.files[0];
-  if (!file) return;
 
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", "your_upload_preset");
-  formData.append("folder", "quizdrive/subcategory-icons");
+const handleSave = async () => {
+  if (saving) return;
+  setSaving(true);
 
-  try {
-    const res = await axios.post(
-      "https://api.cloudinary.com/v1_1/your_cloud_name/upload",
+  let imageUrl  = editSub.image_url  ||  " ";
+  let imagePublicId  = editSub.image_public_id  || " ";
+  let iconFailed = false;
+
+  // 1️⃣ ניסיון העלאת אייקון
+  if (editSub.newIconFile) {
+    const formData = new FormData();
+    formData.append("file", editSub.newIconFile);
+    formData.append("upload_preset", "knowmotion_unsigned"); // your unsigned preset
+    formData.append("folder", "knowmotion/sub_categories_images");
+    try {
+    const uploadRes = await axios.post(
+      "https://api.cloudinary.com/v1_1/davjzk9oi/image/upload",
       formData
     );
+    // 1️⃣ delete old icon via backend
+    if (editSub.newIconFile && editSub.image_public_id) {
+      const token = localStorage.getItem("token");
+      await fetch(`http://localhost:5000/subcategories/delIcon/${editSub.id}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+    }
+    imageUrl  = uploadRes.data.secure_url;
+    imagePublicId  = uploadRes.data.public_id;
+  } catch {
+    iconFailed = true;
+  }
+  }
+  // Prepare data to send
+  let dataToSend = {
+    name: editSub.name,
+    main_category_id: editSub.main_category_id,
+    image_url: imageUrl,           // always send current or new icon
+    image_public_id: imagePublicId
+  };
+  
+  const token = localStorage.getItem("token"); // get the JWT from localStorage
+  // 2️⃣ שמירת נתונים (תמיד!)
+  try {
+    const res = await fetch(`http://localhost:5000/subcategories/${editSub.id}`, {
+      method: "PUT",
+      headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // send token in headers
+    },
+      body: JSON.stringify(dataToSend),
+    });
 
-    const url = res.data.secure_url;
+    if (!res.ok) throw new Error();
 
-    // Update backend DB
-    const token = localStorage.getItem("token");
-    await axios.patch(`http://localhost:5000/subcategories/${subId}`, 
-      { icon_url: url },
-      { headers: { Authorization: `Bearer ${token}` } }
+    const updated = await res.json();
+
+    setSubCategories(prev =>
+      prev.map(s => (s.id === updated.id ? updated : s))
     );
 
-    // Update state locally
-    setSubCategories(prev => prev.map(s => s.id === subId ? { ...s, icon_url: url } : s));
+    setEditSub(prev => ({ ...prev, newIconFile: null }));
+    setSelectedSub(updated);
+    setIsEditing(false);
+
+    Swal.fire({
+      icon: iconFailed ? "warning" : "success",
+      title: iconFailed ? "שימו לב" : "הצלחה",
+      text: iconFailed
+        ? "השינויים נשמרו אך העלאת האייקון נכשלה"
+        : "תת הקטגוריה עודכנה בהצלחה",
+      confirmButtonColor: iconFailed ? "#f59e0b" : "#16a34a",
+    });
   } catch (err) {
-    console.error("Icon upload failed:", err);
+    console.error("Save failed:", err);
+    Swal.fire({
+      icon: "error",
+      title: "שגיאה",
+      text: "שגיאה בשמירת הנתונים",
+      confirmButtonColor: "#dc2626",
+    });
+  } finally {
+    setSaving(false);
   }
 };
 
 
+const openEdit = () => {
+  setEditSub({ 
+    ...selectedSub,
+    newIconFile: null,
+    image_url: selectedSub.image_url,           // make sure icon is set
+    image_public_id: selectedSub.image_public_id
+  });
+  setIsEditing(true);
+};
 
 
 
+const confirmDeleteQuestion = (questionId) => {
+  Swal.fire({
+    title: "?האם אתה בטוח",
+    text: "פעולה זו תמחק את השאלה לצמיתות",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#dc2626", // אדום
+    cancelButtonColor: "#6b7280",  // אפור
+    confirmButtonText: "כן, מחק",
+    cancelButtonText: "ביטול",
+    reverseButtons: true,
+    focusCancel: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      deleteQuestion(questionId);
 
-
-
-
-
-
-
-
-
-
-
-
-
+      Swal.fire({
+        icon: "success",
+        title: "!נמחק",
+        text: "השאלה נמחקה בהצלחה,אל תשכח לשמור את השינויים",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    }
+  });
+};
 
 
   return (
@@ -550,19 +589,6 @@ const handleIconUpload = async (e, subId) => {
   transition-all duration-300
   hover:-translate-y-1
   "
-  /*relative group flex flex-col items-center justify-center
-  w-36 h-36 rounded-full cursor-pointer text-white
-
-  bg-[#212121]
-
-  transition-all duration-300 ease-out
-
-  shadow-[0_0_12px_#3477B2]
-  hover:shadow-[0_0_28px_#3477B2]
-  hover:-translate-y-1
-
-  active:translate-y-0
-  active:shadow-[0_0_18px_#3477B2]*/
   onClick={() => handleSubClick(sub)}
 >
 
@@ -624,16 +650,128 @@ const handleIconUpload = async (e, subId) => {
   <h2 className="text-xl font-semibold">{selectedSub.name}</h2>
 
   {/* Pencil button for editing sub-category icon */}
-  <label className="flex items-center justify-center p-1 rounded-full bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer shadow-md">
-    <FaPencilAlt size={14} />
-    <input
-      type="file"
-      accept="image/*"
-      className="hidden"
-      onChange={(e) => handleIconUpload(e, selectedSub.id)}
-    />
-  </label>
+  <label
+  className="flex items-center justify-center p-1 rounded-full bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer shadow-md"
+  onClick={openEdit}
+>
+  <FaPencilAlt size={14} />
+</label>
 </div>
+
+<AnimatePresence>
+  {isEditing && editSub && (
+    <motion.div
+      className="fixed inset-0 flex items-center justify-center z-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={() => !saving && setIsEditing(false)}
+    >
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/50"></div>
+
+      {/* Modal */}
+      <motion.div
+        initial={{ scale: 0.95, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.95, y: 20, opacity: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="relative bg-white dark:bg-gray-800 p-6 rounded shadow-lg w-full max-w-sm z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="font-semibold mb-4 text-lg">עריכת תת קטגוריה</h3>
+
+        <input
+          type="text"
+          value={editSub.name}
+          onChange={(e) =>
+            setEditSub({ ...editSub, name: e.target.value })
+          }
+          className="w-full p-2 mb-3 border rounded bg-gray-200 dark:bg-gray-700"
+        />
+
+        <select
+          value={editSub.main_category_id}
+          onChange={(e) =>
+            setEditSub({
+              ...editSub,
+              main_category_id: Number(e.target.value),
+            })
+          }
+          className="w-full p-2 mb-3 border rounded bg-gray-200 dark:bg-gray-700"
+        >
+          {mainCategories.map(cat => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+          
+        <label className="flex items-center gap-2 cursor-pointer p-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded mb-4">
+          העלאת אייקון חדש
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={saving}
+            onChange={(e) =>
+              setEditSub(prev => ({
+                ...prev,
+                newIconFile: e.target.files[0],
+              }))
+            }
+          />
+        </label>
+            {editSub.newIconFile ? (
+  <img
+    src={URL.createObjectURL(editSub.newIconFile)}
+    alt="New icon preview"
+    className="h-12 w-12 mb-2 rounded"
+  />
+) : editSub.image_url ? (
+  <img
+    src={editSub.image_url}
+    alt="Current icon"
+    className="h-12 w-12 mb-2 rounded"
+  />
+) : null}
+
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`p-2 rounded text-white ${
+              saving
+                ? "bg-gray-400"
+                : "bg-green-500 hover:bg-green-600"
+            }`}
+          >
+            {saving ? "שומר..." : "שמירה"}
+          </button>
+
+          <button
+            onClick={() => !saving && setIsEditing(false)}
+            className="bg-red-500 hover:bg-red-600 text-white p-2 rounded"
+          >
+            ביטול
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
+
+
+
+
+
+
+
+
+
+
             {questions.length === 0 ? (
         <div className="text-center text-zinc-400 py-10 text-lg">
           אין שאלות בתת־קטגוריה זו
@@ -655,9 +793,14 @@ const handleIconUpload = async (e, subId) => {
                     placeholder="טקטסט השאלה"
                     className="w-full border px-2 py-1 rounded"
                   />
-                  <button onClick={() => deleteQuestion(q.tempId ?? q.id)} className="text-red-500">
-                    <FaTrash />
-                  </button>
+                  <motion.button
+  whileHover={{ scale: 1.15 }}
+  whileTap={{ scale: 0.9 }}
+  onClick={() => confirmDeleteQuestion(q.tempId ?? q.id)}
+  className="text-red-500 cursor-pointer hover:text-red-600"
+>
+  <FaTrash />
+</motion.button>
                 </div>
 
             <div className="mt-2 flex items-center gap-3">
@@ -723,9 +866,10 @@ const handleIconUpload = async (e, subId) => {
                         updateAnswer(q.tempId ?? q.id, aIndex, "is_correct", true)
                       }
                     />
+                    {/*
                     <button onClick={() => deleteAnswer(q.tempId ?? q.id, aIndex)} className="text-red-500">
                       <FaTrash />
-                    </button>
+                    </button>*/}
                   </div>
                 ))}
                 
@@ -875,5 +1019,8 @@ const handleIconUpload = async (e, subId) => {
   </div>
 )}
     </div>
+
+
+
   );
 }
